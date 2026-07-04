@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Meet Mee 消消乐</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#e8483f">
+<link rel="icon" href="img/icon-192.png">
+<link rel="apple-touch-icon" href="img/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<style>
+  :root{
+    --bg:#faf6ef; --panel:rgba(255,255,255,.78); --line:rgba(0,0,0,.09);
+    --gold:#f5a623; --red:#e8483f; --text:#4a2c1a;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; padding:0; min-height:100%;
+    background:var(--bg);
+    color:var(--text); font-family:"Segoe UI","Microsoft YaHei",sans-serif; touch-action:manipulation;}
+  .bgPacket{position:fixed; z-index:-1; filter:drop-shadow(0 10px 26px rgba(0,0,0,.22));}
+  #packetL{left:-5vw; bottom:-4vh; width:36vw; max-width:300px; transform:rotate(-12deg);}
+  #packetR{right:-5vw; top:-3vh; width:34vw; max-width:280px; transform:rotate(13deg);}
+  #wrap{max-width:520px; margin:0 auto; padding:10px 8px 24px;}
+  header{display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; gap:8px;}
+  header h1{font-size:20px; margin:0; color:var(--red);}
+  header .sub{font-size:11px; color:#a08265; margin-left:auto;}
+  #muteBtn,#mapBtn{font-size:17px; padding:4px 10px; border-radius:10px; border:1px solid var(--line);
+    background:var(--panel); cursor:pointer;}
+  #stats{display:flex; gap:6px; margin-bottom:6px;}
+  .stat{flex:1; background:var(--panel); border:1px solid var(--line); border-radius:10px;
+    padding:5px 6px; text-align:center; backdrop-filter:blur(4px); box-shadow:0 2px 8px rgba(0,0,0,.06);}
+  .stat .label{font-size:10px; color:#a08265;}
+  .stat .value{font-size:16px; font-weight:700; color:var(--red); white-space:nowrap;}
+  #barBox{background:rgba(0,0,0,.10); border-radius:8px; height:14px; margin-bottom:4px; overflow:hidden; border:1px solid var(--line);}
+  #bar{height:100%; width:0%; border-radius:8px; transition:width .4s;
+    background:linear-gradient(90deg,#ffb52e,#ffd23f);}
+  #energyBox{background:rgba(0,0,0,.10); border-radius:8px; height:10px; margin-bottom:8px; overflow:hidden; border:1px solid var(--line); position:relative;}
+  #energy{height:100%; width:0%; border-radius:8px; transition:width .15s linear;
+    background:linear-gradient(90deg,#e8483f,#ff7b2e,#ffd23f);}
+  #energyBox.full #energy{animation:eflash .35s infinite;}
+  @keyframes eflash{0%,100%{filter:brightness(1);}50%{filter:brightness(1.8);}}
+  #boardBox{position:relative;}
+  canvas{display:block; width:100%; border-radius:14px;}
+  #overlay{position:absolute; inset:0; background:rgba(255,250,242,.95); border-radius:14px;
+    display:flex; flex-direction:column; align-items:center; justify-content:safe center; text-align:center; padding:14px; backdrop-filter:blur(3px); box-shadow:0 6px 30px rgba(0,0,0,.12); overflow:auto;}
+  #overlay h2{color:var(--red); margin:0 0 8px; font-size:24px;}
+  #overlay p{font-size:14px; line-height:1.8; color:#6b4a30; margin:4px 0;}
+  #overlay .stars{font-size:34px; letter-spacing:6px; margin:2px 0 6px;}
+  #overlay button{margin-top:10px; font-size:17px; padding:10px 38px; border-radius:26px; border:none;
+    background:linear-gradient(180deg,#ffd23f,#f5a623); color:#5a1508; font-weight:800; cursor:pointer;
+    box-shadow:0 4px 14px rgba(0,0,0,.25);}
+  #overlay button.secondary{background:#fff; border:1px solid var(--line); font-weight:600; font-size:14px; padding:8px 26px;}
+  #mapGrid{display:grid; grid-template-columns:repeat(5,1fr); gap:8px; width:100%; max-width:330px; margin-top:6px;}
+  .lvBtn{position:relative; aspect-ratio:1; border-radius:12px; border:1px solid var(--line);
+    background:linear-gradient(180deg,#fff,#ffeeda); font-size:15px; font-weight:800; color:#8a5a2e; cursor:pointer;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px;}
+  .lvBtn .st{font-size:9px; letter-spacing:1px; color:var(--gold);}
+  .lvBtn.locked{opacity:.25; filter:grayscale(1); cursor:default; background:#e8e2d8;}
+  .lvBtn.current{outline:3px solid var(--gold); box-shadow:0 0 14px rgba(245,166,35,.65);
+    animation:pulse 1.2s infinite; background:linear-gradient(180deg,#fff6d8,#ffd98a);}
+  @keyframes pulse{0%,100%{transform:scale(1);}50%{transform:scale(1.08);}}
+  #toast{position:absolute; top:40%; left:0; right:0; text-align:center; font-size:22px; font-weight:800;
+    color:var(--red); text-shadow:0 1px 0 #fff, 0 2px 10px rgba(0,0,0,.18); opacity:0; transition:opacity .3s; pointer-events:none; z-index:5;}
+  .hidden{display:none !important;}
+  .hint{font-size:11px; color:#a08265; line-height:1.7; margin-top:8px; text-align:center;}
+</style>
+</head>
+<body>
+<img id="packetL" class="bgPacket" src="img/packet1.jpg" alt="" onerror="this.style.display='none'">
+<img id="packetR" class="bgPacket" src="img/packet2.jpg" alt="" onerror="this.style.display='none'">
+<div id="wrap">
+  <header>
+    <h1>🍜 Meet Mee 消消乐</h1>
+    <div class="sub">v4</div>
+    <button id="mapBtn" title="选关">🗺️</button>
+    <button id="muteBtn" title="音效开关">🔊</button>
+  </header>
+  <div id="stats">
+    <div class="stat"><div class="label">关卡</div><div class="value" id="lvl">-</div></div>
+    <div class="stat"><div class="label">分数</div><div class="value" id="score">0</div></div>
+    <div class="stat" style="flex:1.4"><div class="label">目标</div><div class="value" id="goal">-</div></div>
+    <div class="stat"><div class="label">步数</div><div class="value" id="moves">-</div></div>
+  </div>
+  <div id="barBox"><div id="bar"></div></div>
+  <div id="energyBox"><div id="energy"></div></div>
+  <div id="boardBox">
+    <canvas id="game"></canvas>
+    <div id="toast"></div>
+    <div id="overlay"></div>
+  </div>
+  <div class="hint">滑动交换 · 4连=十字爆炸 · 5连=MM包装(换谁清谁) · 发呆有提示</div>
+</div>
+<script>
+'use strict';
+// ================= 常量 =================
+const N = 8, TILE = 60, PAD = 6;
+const FOODS = [
+  {key:'egg',      name:'鸡蛋',        emoji:'🥚', c1:'#ffe9b8', c2:'#e0a83c'},
+  {key:'noodle',   name:'面块',        emoji:'🍜', c1:'#ffd9a8', c2:'#c9722a'},
+  {key:'chili',    name:'辣椒',        emoji:'🌶️', c1:'#ff9d8f', c2:'#c92a1e'},
+  {key:'ikanbilis',name:'江鱼仔',      emoji:'🐟', c1:'#a8d4ff', c2:'#2a6bc9'},
+  {key:'sayur',    name:'Sayur Manis', emoji:'🥬', c1:'#b8f0b0', c2:'#2a9435'},
+  {key:'shallot',  name:'炸葱',        emoji:'🧅', c1:'#ffe3b0', c2:'#b8862a'},
+  {key:'sauce',    name:'酱料',        emoji:'🥫', c1:'#e0c0f0', c2:'#7a3aa0'},
+  {key:'chilioil', name:'辣椒油',      emoji:'🍶', c1:'#ffc4d0', c2:'#c92a5e'},
+];
+const IMGS = {};
+function tryLoad(key){
+  const im = new Image();
+  im.onload = () => IMGS[key] = im;
+  im.src = 'img/' + key + '.png';
+}
+for (const f of FOODS) tryLoad(f.key);
+tryLoad('mm'); tryLoad('mm2');
+const MM_SPAWN_CHANCE = 0.03;
+const MATCH_MIN = 3;
+
+// ================= 语音喊词（audio/ 下有文件就自动启用） =================
+const VOICES = {};
+for (const nm of ['sedap','mantap','terbaik','pedasgila']){
+  const a = new Audio();
+  a.oncanplaythrough = () => { VOICES[nm] = a; };
+  a.onerror = () => {};
+  a.src = 'audio/' + nm + '.mp3';
+  a.load();
+}
+function shout(nm){
+  const a = VOICES[nm];
+  if (a && !AudioSys.muted){ try{ a.currentTime = 0; a.volume = 0.9; a.play().catch(()=>{}); }catch(e){} }
+}
+
+// ================= 音效（Web Audio 合成） =================
+const AudioSys = {
+  ctx: null, master: null, bgmTimer: null, step: 0, phrase: 0,
+  muted: localStorage.getItem('mmMuted') === '1',
+  init(){
+    try {
+      if (!this.ctx){
+        this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        this.master = this.ctx.createGain();
+        this.master.gain.value = this.muted ? 0 : 1;
+        this.master.connect(this.ctx.destination);
+      }
+      this.ctx.resume();
+      this.startBgm();
+    } catch(e){}
+  },
+  toggleMute(){
+    this.muted = !this.muted;
+    localStorage.setItem('mmMuted', this.muted ? '1' : '0');
+    if (this.master) this.master.gain.value = this.muted ? 0 : 1;
+    return this.muted;
+  },
+  tone(freq, dur, type='sine', vol=0.15, when=0, slideTo=0){
+    if (!this.ctx || this.muted) return;
+    const t0 = this.ctx.currentTime + when;
+    const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, t0);
+    if (slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(30, slideTo), t0 + dur);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.linearRampToValueAtTime(vol, t0 + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+    o.connect(g); g.connect(this.master);
+    o.start(t0); o.stop(t0 + dur + 0.05);
+  },
+  pop(mult){
+    // 能量越高音调越高，听觉上被推着走
+    const f = 420 * Math.pow(1.18, Math.min(mult - 1, 10)) * (1 + energy * 0.5);
+    this.tone(f, 0.16, 'triangle', 0.22);
+    this.tone(f * 1.5, 0.12, 'sine', 0.12, 0.035);
+  },
+  tick(e){ this.tone(650 + e * 600, 0.05, 'square', 0.035); },
+  riser(){ this.tone(300, 0.7, 'sawtooth', 0.13, 0, 1400); this.tone(150, 0.7, 'sine', 0.15, 0, 700); },
+  blast(){ this.tone(160, 0.35, 'sawtooth', 0.2, 0, 45); this.tone(70, 0.3, 'sine', 0.3); },
+  chime(lv){ this.tone(500 + lv * 220, 0.12, 'triangle', 0.12); },
+  swap(){ this.tone(320, 0.07, 'sine', 0.07, 0, 240); },
+  invalid(){ this.tone(150, 0.14, 'square', 0.05); },
+  special(){ [660, 880, 1175].forEach((f, i) => this.tone(f, 0.16, 'triangle', 0.15, i * 0.06)); },
+  beam(){ this.tone(900, 0.28, 'sawtooth', 0.10, 0, 200); this.tone(1400, 0.22, 'sine', 0.08, 0.02, 500); },
+  mmBoom(){
+    this.tone(180, 0.5, 'sawtooth', 0.13, 0, 900);
+    this.tone(60, 0.4, 'sine', 0.3);
+    [523, 659, 784, 1047].forEach((f, i) => this.tone(f, 0.22, 'triangle', 0.16, 0.1 + i * 0.07));
+  },
+  win(){ [523, 659, 784, 1047, 1319].forEach((f, i) => this.tone(f, 0.3, 'triangle', 0.18, i * 0.11)); },
+  lose(){ [392, 349, 311, 262].forEach((f, i) => this.tone(f, 0.32, 'sine', 0.11, i * 0.16)); },
+  bpm(){
+    let b = 104 + (typeof level === 'number' ? level * 2 : 0);
+    if (typeof moves === 'number' && moves <= 8 && state !== 'over') b += (8 - moves) * 9;
+    if (goalProgress() > 0.75) b += 8;
+    b += energy * 18;                 // 能量越满音乐越快
+    return Math.min(195, b);
+  },
+  startBgm(){
+    if (this.bgmTimer) return;
+    const SCALE = [523.25, 587.33, 659.25, 783.99, 880.00, 1046.5];
+    const PH1 = [0, 2, 1, 3, 0, 4, 3, 2, 1, 3, 2, 4, 0, 2, 4, 3];
+    const PH2 = [4, 2, 3, 1, 4, 5, 3, 2, 4, 3, 2, 0, 1, 2, 3, 4];
+    const tick = () => {
+      if (state !== 'over' && state !== 'map' && !this.muted && !document.hidden){
+        const s = this.step % 16;
+        const mel = (this.phrase % 2 === 0) ? PH1 : PH2;
+        if (s % 4 === 0){
+          const panic = typeof moves === 'number' && moves <= 5;
+          this.tone(panic ? 65 : (s % 8 === 0 ? 131 : 98), panic ? 0.22 : 0.16, 'sine', panic ? 0.3 : 0.1);
+        }
+        if (s % 2 === 0) this.tone(SCALE[mel[s]], 0.14, 'sine', 0.045);
+        if (s === 14 && Math.random() < 0.5) this.tone(1568, 0.1, 'triangle', 0.04);
+        this.step++;
+        if (this.step % 16 === 0) this.phrase++;
+      }
+      this.bgmTimer = setTimeout(tick, 30000 / this.bpm());
+    };
+    tick();
+  },
+};
+document.getElementById('muteBtn').onclick = () => {
+  document.getElementById('muteBtn').textContent = AudioSys.toggleMute() ? '🔇' : '🔊';
+  if (!AudioSys.muted) AudioSys.init();
+};
+if (AudioSys.muted) document.getElementById('muteBtn').textContent = '🔇';
+
+// ================= 关卡设计 =================
+// 手工设计前 10 关（难度有起伏），之后程序化生成
+const LEVELS = [
+  {goal:{kind:'score', target:600},  moves:20, types:4},
+  {goal:{kind:'score', target:1000}, moves:20, types:4},
+  {goal:{kind:'collect', items:[{type:0, count:15}]}, moves:20, types:4},
+  {goal:{kind:'score', target:1600}, moves:19, types:5},
+  {goal:{kind:'jelly', count:12, layers:1}, moves:20, types:4},
+  {goal:{kind:'collect', items:[{type:1, count:12},{type:2, count:12}]}, moves:19, types:5},
+  {goal:{kind:'score', target:2400}, moves:18, types:5},
+  {goal:{kind:'jelly', count:18, layers:1}, moves:18, types:5},
+  {goal:{kind:'score', target:1400}, moves:20, types:4},   // 爽关
+  {goal:{kind:'jelly', count:20, layers:2}, moves:20, types:5},
+];
+const MAX_LEVEL = 50;
+function levelCfg(n){
+  if (n <= LEVELS.length) return JSON.parse(JSON.stringify(LEVELS[n-1]));
+  const i = n - LEVELS.length;                       // 第 11 关起
+  const breather = n % 5 === 0;                      // 每 5 关一个爽关
+  const types = Math.min(FOODS.length, 5 + Math.floor(n / 9));
+  const moves = breather ? 20 : Math.max(15, 20 - Math.floor(i / 4));
+  const kind = ['score', 'collect', 'jelly'][n % 3];
+  if (kind === 'score')
+    return {goal:{kind, target: (breather ? 1200 : 2200) + i * 260}, moves, types};
+  if (kind === 'collect'){
+    const nItems = breather ? 1 : Math.min(3, 1 + Math.floor(i / 6));
+    const items = [];
+    const used = new Set();
+    for (let k = 0; k < nItems; k++){
+      let t;
+      do { t = Math.floor(Math.random() * types); } while (used.has(t));
+      used.add(t);
+      items.push({type: t, count: (breather ? 12 : 16) + Math.floor(i / 2)});
+    }
+    return {goal:{kind, items}, moves, types};
+  }
+  return {goal:{kind:'jelly', count: Math.min(32, (breather ? 14 : 20) + Math.floor(i / 2)),
+    layers: n >= 15 ? 2 : 1}, moves, types};
+}
+function goalText(cfg, collectCounts, jellyLeft){
+  const g = cfg.goal;
+  if (g.kind === 'score') return `${g.target} 分`;
+  if (g.kind === 'collect')
+    return g.items.map(it => `${FOODS[it.type].emoji}${Math.min(it.count, collectCounts[it.type]||0)}/${it.count}`).join(' ');
+  return `🟦果冻 剩${jellyLeft}`;
+}
+function starThresholds(cfg){
+  const base = cfg.goal.kind === 'score' ? cfg.goal.target : cfg.moves * 130;
+  return [base, Math.round(base * 1.5), Math.round(base * 2.1)];
+}
+
+// ================= 进度存档 =================
+let progress = JSON.parse(localStorage.getItem('mmProgress') || '{"unlocked":1,"stars":{}}');
+function saveProgress(){ localStorage.setItem('mmProgress', JSON.stringify(progress)); }
+
+// ================= 状态 =================
+let grid, jelly, state = 'map';   // map | idle | busy | fever | over
+let level = 0, score = 0, moves = 0, cfg = null, collectCounts = {}, totalJelly = 0;
+let sel = null, dragStart = null, idleSince = Date.now(), hintMove = null;
+let effects = [], particles = [], beams = [], waves = [], shakeT = 0;
+// 能量系统
+let energy = 0, energyFull = false, feverTaps = 0, feverTimer = null, feverBusy = false, lastEnergyTick = 0;
+
+const cv = document.getElementById('game');
+cv.width = N*TILE + PAD*2; cv.height = N*TILE + PAD*2;
+const ctx = cv.getContext('2d');
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const px = c => PAD + c*TILE, py = r => PAD + r*TILE;
+
+function jellyLeft(){
+  let n = 0;
+  if (jelly) for (const row of jelly) for (const v of row) n += v;
+  return n;
+}
+function goalProgress(){
+  if (!cfg) return 0;
+  const g = cfg.goal;
+  if (g.kind === 'score') return Math.min(1, score / g.target);
+  if (g.kind === 'collect'){
+    let need = 0, got = 0;
+    for (const it of g.items){ need += it.count; got += Math.min(it.count, collectCounts[it.type] || 0); }
+    return need ? got / need : 0;
+  }
+  return totalJelly ? (totalJelly - jellyLeft()) / totalJelly : 0;
+}
+function goalMet(){ return goalProgress() >= 1; }
+
+// ================= 能量 / 大 POWER 系统 =================
+function updateEnergyUI(){
+  $('energy').style.width = (energy * 100) + '%';
+  $('energyBox').classList.toggle('full', energy >= 1 || state === 'fever');
+}
+function gainEnergy(x){
+  if (state === 'fever' || state === 'over') return;
+  const prev = energy;
+  energy = Math.min(1, energy + x);
+  // 越过 25/50/75 门槛给一声上升提示音
+  for (let i = 1; i <= 3; i++){
+    const th = i * 0.25;
+    if (prev < th && energy >= th) AudioSys.chime(i);
+  }
+  if (prev < 1 && energy >= 1){ energyFull = true; AudioSys.riser(); }
+  updateEnergyUI();
+}
+// 能量随时间倒退 + 高位滴答声催促
+setInterval(() => {
+  if (state === 'idle' && energy > 0 && !energyFull){
+    energy = Math.max(0, energy - 0.004);
+    updateEnergyUI();
+    const now = Date.now();
+    if (energy > 0.5){
+      const gap = energy > 0.8 ? 550 : 1100;
+      if (now - lastEnergyTick > gap){ lastEnergyTick = now; AudioSys.tick(energy); }
+    }
+  }
+}, 100);
+function enterFever(){
+  energyFull = false;
+  state = 'fever'; feverTaps = 5; feverBusy = false;
+  AudioSys.mmBoom(); shout('terbaik');
+  toast('🔥 大 POWER！随便点 5 下！');
+  shakeT = Math.max(shakeT, 14);
+  updateEnergyUI();
+  feverTimer = setTimeout(endFever, 6000);
+}
+async function feverTap(cell){
+  if (state !== 'fever' || feverBusy) return;
+  feverBusy = true;
+  const [r, c] = cell;
+  const set = new Set();
+  for (let dr=-1; dr<=1; dr++) for (let dc=-1; dc<=1; dc++){
+    const r2 = r+dr, c2 = c+dc;
+    if (r2>=0 && r2<N && c2>=0 && c2<N && grid[r2][c2]) set.add(r2+','+c2);
+  }
+  AudioSys.blast();
+  waves.push({x:px(c)+TILE/2, y:py(r)+TILE/2, r:0, t:0.8});
+  shakeT = Math.max(shakeT, 10);
+  score += await popCells(set, 1, null);
+  gravityRefill(); updateHUD();
+  await waitSettle();
+  feverBusy = false;
+  feverTaps--;
+  if (feverTaps <= 0) endFever();
+}
+async function endFever(){
+  if (state !== 'fever') return;
+  clearTimeout(feverTimer);
+  state = 'busy';
+  energy = 0; updateEnergyUI();
+  await resolveCascade(null);      // 清理炸出来的连锁
+  checkEnd();
+  if (state === 'busy') state = 'idle';
+  idleSince = Date.now(); hintMove = null;
+}
+
+// ================= 棋盘 =================
+function makeTile(type, r, c, fromAbove){
+  return {type, special:null, px:px(c), py: fromAbove ? py(r) - TILE*(fromAbove+1) : py(r), scale:1, dying:false};
+}
+function randType(){ return Math.floor(Math.random()*cfg.types); }
+function initGrid(){
+  grid = [];
+  for (let r=0; r<N; r++){
+    grid.push([]);
+    for (let c=0; c<N; c++){
+      let t;
+      do { t = randType(); }
+      while ((c>=2 && grid[r][c-1].type===t && grid[r][c-2].type===t) ||
+             (r>=2 && grid[r-1][c].type===t && grid[r-2][c].type===t));
+      grid[r].push(makeTile(t, r, c));
+    }
+  }
+  if (!findAnyMove()) initGrid();
+}
+function initJelly(){
+  jelly = Array.from({length:N}, () => Array(N).fill(0));
+  totalJelly = 0;
+  if (cfg.goal.kind !== 'jelly') return;
+  const cells = [];
+  for (let r=0; r<N; r++) for (let c=0; c<N; c++) cells.push([r,c]);
+  for (let i=cells.length-1; i>0; i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [cells[i],cells[j]] = [cells[j],cells[i]];
+  }
+  for (let k=0; k<Math.min(cfg.goal.count, N*N); k++){
+    const [r,c] = cells[k];
+    jelly[r][c] = cfg.goal.layers;
+    totalJelly += cfg.goal.layers;
+  }
+}
+
+// ================= 物理 =================
+function updatePhysics(){
+  if (!grid) return;
+  const snap = document.hidden;
+  for (let r=0; r<N; r++) for (let c=0; c<N; c++){
+    const t = grid[r][c];
+    if (!t) continue;
+    if (snap){ t.px = px(c); t.py = py(r); if (t.dying) t.scale = 0; continue; }
+    t.px += (px(c) - t.px) * 0.22;
+    t.py += (py(r) - t.py) * 0.22;
+    if (t.dying) t.scale = Math.max(0, t.scale - 0.09);
+  }
+}
+setInterval(updatePhysics, 16);
+async function waitSettle(){
+  while (true){
+    updatePhysics();
+    let moving = false;
+    for (let r=0; r<N; r++) for (let c=0; c<N; c++){
+      const t = grid[r][c];
+      if (t && (Math.abs(t.px-px(c))>0.6 || Math.abs(t.py-py(r))>0.6)) moving = true;
+    }
+    if (!moving) return;
+    await sleep(30);
+  }
+}
+
+// ================= 消除逻辑 =================
+function findRuns(){
+  const runs = [];
+  for (let r=0; r<N; r++){
+    let c=0;
+    while (c<N){
+      const t = grid[r][c].type; let len=1;
+      while (c+len<N && grid[r][c+len].type===t) len++;
+      if (len>=3 && t !== -1) runs.push({cells:Array.from({length:len},(_,i)=>[r,c+i]), len, dir:'h'});
+      c += len;
+    }
+  }
+  for (let c=0; c<N; c++){
+    let r=0;
+    while (r<N){
+      const t = grid[r][c].type; let len=1;
+      while (r+len<N && grid[r+len][c].type===t) len++;
+      if (len>=3 && t !== -1) runs.push({cells:Array.from({length:len},(_,i)=>[r+i,c]), len, dir:'v'});
+      r += len;
+    }
+  }
+  return runs;
+}
+function collectClears(runs, swapCells){
+  const clear = new Set(), specialsBorn = [], crossHits = [];
+  for (const run of runs){
+    if (run.len >= 4){
+      let bornAt = run.cells.find(([r,c]) => swapCells && swapCells.some(s => s[0]===r && s[1]===c))
+                || run.cells[Math.floor(run.len/2)];
+      specialsBorn.push({at:bornAt, kind: run.len>=5 ? 'mm' : 'cross'});
+    }
+    for (const [r,c] of run.cells) clear.add(r+','+c);
+  }
+  const queue = [...clear];
+  while (queue.length){
+    const [r,c] = queue.pop().split(',').map(Number);
+    const t = grid[r][c];
+    if (!t || t.special !== 'cross' || t.exploded) continue;
+    t.exploded = true;
+    crossHits.push([r,c]);
+    for (let i=0; i<N; i++){
+      for (const k of [r+','+i, i+','+c]){
+        if (!clear.has(k)){ clear.add(k); queue.push(k); }
+      }
+    }
+  }
+  for (const s of specialsBorn) clear.delete(s.at[0]+','+s.at[1]);
+  return {clear, specialsBorn, crossHits};
+}
+function spawnParticles(r, c, type){
+  const f = FOODS[type >= 0 ? type : 2];
+  const cx = px(c)+TILE/2, cy = py(r)+TILE/2;
+  for (let i=0; i<8; i++){
+    const a = Math.random()*Math.PI*2, v = 2 + Math.random()*3.5;
+    particles.push({x:cx, y:cy, vx:Math.cos(a)*v, vy:Math.sin(a)*v - 2,
+      life:1, size:3+Math.random()*5, color: Math.random()<.5 ? f.c1 : f.c2});
+  }
+}
+async function popCells(clearSet, mult, crossHits){
+  if (clearSet.size === 0) return 0;
+  AudioSys.pop(mult);
+  if (crossHits && crossHits.length){
+    AudioSys.beam();
+    for (const [r,c] of crossHits) beams.push({r, c, t:1});
+    shakeT = Math.max(shakeT, 8);
+  }
+  let cx=0, cy=0;
+  for (const k of clearSet){
+    const [r,c] = k.split(',').map(Number);
+    const t = grid[r][c];
+    t.dying = true;
+    spawnParticles(r, c, t.type);
+    // 收集计数 + 果冻消层
+    if (t.type >= 0 && cfg.goal.kind === 'collect')
+      collectCounts[t.type] = (collectCounts[t.type] || 0) + 1;
+    if (jelly[r][c] > 0) jelly[r][c]--;
+    cx += px(c)+TILE/2; cy += py(r)+TILE/2;
+  }
+  cx/=clearSet.size; cy/=clearSet.size;
+  shakeT = Math.max(shakeT, Math.min(14, 2 + clearSet.size * 0.5 + mult));
+  gainEnergy(clearSet.size * 0.03 + (mult - 1) * 0.05);
+  const gained = clearSet.size * 10 * mult;
+  effects.push({text:(mult>1?`连锁x${mult} `:'')+`+${gained}`, x:cx, y:cy, alpha:1});
+  await sleep(260);
+  for (const k of clearSet){
+    const [r,c] = k.split(',').map(Number);
+    grid[r][c] = null;
+  }
+  return gained;
+}
+function gravityRefill(){
+  for (let c=0; c<N; c++){
+    let write = N-1, newCount = 0;
+    for (let r=N-1; r>=0; r--){
+      if (grid[r][c]){ grid[write][c] = grid[r][c]; write--; }
+    }
+    for (let r=write; r>=0; r--){
+      newCount++;
+      const t = makeTile(randType(), r, c, newCount);
+      if (Math.random() < MM_SPAWN_CHANCE){
+        t.special = 'mm'; t.type = -1;
+        t.mmSkin = Math.random() < 0.5 ? 1 : 2;
+      }
+      grid[r][c] = t;
+    }
+  }
+}
+async function resolveCascade(swapCells){
+  let mult = 1;
+  while (true){
+    const runs = findRuns();
+    if (!runs.length) break;
+    const {clear, specialsBorn, crossHits} = collectClears(runs, mult===1 ? swapCells : null);
+    if (mult === 3) shout(Math.random() < 0.5 ? 'sedap' : 'mantap');
+    if (mult === 4) shout('pedasgila');
+    if (mult >= 5) shout('terbaik');
+    score += await popCells(clear, mult, crossHits);
+    if (specialsBorn.length) AudioSys.special();
+    for (const s of specialsBorn){
+      const t = grid[s.at[0]][s.at[1]];
+      if (t){ t.special = s.kind; t.exploded = false;
+        if (s.kind==='mm'){ t.type = -1; t.mmSkin = Math.random() < 0.5 ? 1 : 2; } }
+    }
+    gravityRefill();
+    updateHUD();
+    await waitSettle();
+    mult++;
+    swapCells = null;
+  }
+  if (state !== 'over' && !findAnyMove()){
+    toast('没有可行棋，重新洗牌');
+    await sleep(700);
+    shuffleBoard();
+    await waitSettle();
+  }
+}
+async function activateMM(mmCell, otherCell){
+  AudioSys.mmBoom();
+  shout('sedap');
+  const [mr,mc] = mmCell, [or_,oc] = otherCell;
+  waves.push({x:px(mc)+TILE/2, y:py(mr)+TILE/2, r:0, t:1});
+  shakeT = Math.max(shakeT, 16);
+  const other = grid[or_][oc];
+  const clear = new Set([mr+','+mc]);
+  if (other.special === 'mm'){
+    for (let r=0; r<N; r++) for (let c=0; c<N; c++) clear.add(r+','+c);
+  } else {
+    for (let r=0; r<N; r++) for (let c=0; c<N; c++)
+      if (grid[r][c].type === other.type) clear.add(r+','+c);
+  }
+  const queue = [...clear];
+  const crossHits = [];
+  while (queue.length){
+    const [r,c] = queue.pop().split(',').map(Number);
+    const t = grid[r][c];
+    if (!t || t.special !== 'cross' || t.exploded) continue;
+    t.exploded = true;
+    crossHits.push([r,c]);
+    for (let i=0; i<N; i++) for (const k of [r+','+i, i+','+c])
+      if (!clear.has(k)){ clear.add(k); queue.push(k); }
+  }
+  score += await popCells(clear, 1, crossHits);
+  gravityRefill();
+  updateHUD();
+  await waitSettle();
+  await resolveCascade(null);
+}
+
+// ================= 可行棋 =================
+function swapTypes(a, b){
+  const t = grid[a[0]][a[1]]; grid[a[0]][a[1]] = grid[b[0]][b[1]]; grid[b[0]][b[1]] = t;
+}
+function hasRunAt(){ return findRuns().length > 0; }
+function findAnyMove(){
+  for (let r=0; r<N; r++) for (let c=0; c<N; c++){
+    if (!grid[r][c]) continue;
+    if (grid[r][c].special === 'mm' && c > 0) return [[r,c],[r,c-1]];
+    for (const [dr,dc] of [[0,1],[1,0]]){
+      const r2=r+dr, c2=c+dc;
+      if (r2>=N || c2>=N || !grid[r2][c2]) continue;
+      swapTypes([r,c],[r2,c2]);
+      const ok = hasRunAt();
+      swapTypes([r,c],[r2,c2]);
+      if (ok) return [[r,c],[r2,c2]];
+    }
+  }
+  return null;
+}
+function shuffleBoard(){
+  const cells = [];
+  for (let r=0; r<N; r++) for (let c=0; c<N; c++)
+    if (grid[r][c].special !== 'mm') cells.push([r,c]);
+  const types = cells.map(([r,c]) => grid[r][c].type);
+  let guard = 0;
+  do {
+    for (let i=types.length-1; i>0; i--){
+      const j = Math.floor(Math.random()*(i+1));
+      [types[i],types[j]] = [types[j],types[i]];
+    }
+    cells.forEach(([r,c], i) => grid[r][c].type = types[i]);
+  } while ((hasRunAt() || !findAnyMove()) && ++guard < 200);
+}
+
+// ================= 交换 =================
+function adjacent(a, b){ return Math.abs(a[0]-b[0]) + Math.abs(a[1]-b[1]) === 1; }
+async function doSwap(a, b){
+  if (state !== 'idle' || !adjacent(a,b)) return;
+  state = 'busy'; sel = null; idleSince = Date.now();
+  AudioSys.swap();
+  const ta = grid[a[0]][a[1]], tb = grid[b[0]][b[1]];
+  swapTypes(a, b);
+  await waitSettle();
+  if (ta.special === 'mm' || tb.special === 'mm'){
+    moves--; updateHUD();
+    if (ta.special === 'mm') await activateMM(b, a);
+    else await activateMM(a, b);
+  } else if (hasRunAt()){
+    moves--; updateHUD();
+    await resolveCascade([a, b]);
+  } else {
+    AudioSys.invalid();
+    swapTypes(a, b);
+    await waitSettle();
+    state = 'idle';
+    return;
+  }
+  if (!goalMet() && energyFull && state === 'busy'){
+    enterFever();                    // 能量满：先爆发，输赢等爆完再算
+  } else {
+    checkEnd();
+  }
+  if (state === 'busy') state = 'idle';
+  hintMove = null; idleSince = Date.now();
+}
+function checkEnd(){
+  if (goalMet()){
+    AudioSys.win();
+    shout('terbaik');
+    const bonus = moves * 20;
+    score += bonus;
+    const [s1, s2, s3] = starThresholds(cfg);
+    const stars = 1 + (score >= s2 ? 1 : 0) + (score >= s3 ? 1 : 0);
+    progress.stars[level] = Math.max(progress.stars[level] || 0, stars);
+    progress.unlocked = Math.max(progress.unlocked, Math.min(MAX_LEVEL, level + 1));
+    saveProgress();
+    updateHUD();
+    showResult(true, stars, bonus);
+    state = 'over';
+  } else if (moves <= 0){
+    AudioSys.lose();
+    showResult(false, 0, 0);
+    state = 'over';
+  }
+}
+
+// ================= 关卡流程 / HUD =================
+function startLevel(n){
+  AudioSys.init();
+  level = n; cfg = levelCfg(n);
+  moves = cfg.moves; score = 0; collectCounts = {};
+  energy = 0; energyFull = false; clearTimeout(feverTimer); updateEnergyUI();
+  initGrid(); initJelly();
+  $('overlay').classList.add('hidden');
+  updateHUD();
+  const g = cfg.goal;
+  toast(`第 ${n} 关：` + (g.kind==='score' ? `拿 ${g.target} 分`
+    : g.kind==='collect' ? '收集 ' + g.items.map(it=>`${FOODS[it.type].emoji}×${it.count}`).join(' ')
+    : `清掉 ${g.count} 块果冻`));
+  state = 'idle'; idleSince = Date.now(); hintMove = null;
+}
+function updateHUD(){
+  $('lvl').textContent = level || '-';
+  $('score').textContent = score;
+  $('goal').textContent = cfg ? goalText(cfg, collectCounts, jellyLeft()) : '-';
+  $('moves').textContent = moves;
+  $('bar').style.width = (goalProgress() * 100) + '%';
+}
+function showResult(won, stars, bonus){
+  const ov = $('overlay');
+  ov.innerHTML = won
+    ? `<h2>🎉 过关！</h2>
+       <div class="stars">${'★'.repeat(stars)}${'☆'.repeat(3-stars)}</div>
+       <p>本关 <b>${score}</b> 分（步数奖励 +${bonus}）</p>
+       <button id="nextBtn">下一关</button>
+       <button id="toMapBtn" class="secondary">回关卡图</button>`
+    : `<h2>步数用完了</h2>
+       <p>进度 ${Math.round(goalProgress()*100)}% —— 差一点，再来！</p>
+       <button id="nextBtn">重试本关</button>
+       <button id="toMapBtn" class="secondary">回关卡图</button>`;
+  $('nextBtn').onclick = () => startLevel(won ? Math.min(MAX_LEVEL, level + 1) : level);
+  $('toMapBtn').onclick = showMap;
+  ov.classList.remove('hidden');
+}
+function showMap(){
+  state = 'map';
+  const ov = $('overlay');
+  let html = `<h2>🗺️ 关卡地图</h2><p style="margin:0">已解锁 ${progress.unlocked} / ${MAX_LEVEL} 关</p><div id="mapGrid">`;
+  for (let n = 1; n <= MAX_LEVEL; n++){
+    const locked = n > progress.unlocked;
+    const st = progress.stars[n] || 0;
+    html += `<button class="lvBtn ${locked?'locked':''} ${n===progress.unlocked?'current':''}" data-n="${n}" ${locked?'disabled':''}>
+      ${n}<span class="st">${st ? '★'.repeat(st) : (locked ? '🔒' : '')}</span></button>`;
+  }
+  html += `</div>`;
+  ov.innerHTML = html;
+  ov.querySelectorAll('.lvBtn:not(.locked)').forEach(b =>
+    b.onclick = () => startLevel(+b.dataset.n));
+  ov.classList.remove('hidden');
+  // 自动滚到当前可玩的关卡
+  const cur = ov.querySelector('.lvBtn.current');
+  if (cur) cur.scrollIntoView({block:'center'});
+}
+$('mapBtn').onclick = () => { if (state === 'idle' || state === 'over' || state === 'map') showMap(); };
+let toastTimer;
+function toast(msg){
+  const t = $('toast');
+  t.textContent = msg; t.style.opacity = 1;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.style.opacity = 0, 1700);
+}
+
+// ================= 绘制 =================
+function rr(x, y, w, h, r){ ctx.beginPath(); ctx.roundRect(x, y, w, h, r); }
+function drawTile(t){
+  const s = TILE * t.scale, off = (TILE - s)/2;
+  const x = t.px + off, y = t.py + off;
+  ctx.save();
+  if (t.special === 'mm'){
+    const img = (t.mmSkin === 2 && IMGS.mm2) ? IMGS.mm2 : IMGS.mm;
+    if (img){
+      ctx.save();
+      rr(x+3, y+3, s-6, s-6, 10); ctx.clip();
+      ctx.drawImage(img, x+3, y+3, s-6, s-6);
+      ctx.restore();
+    } else {
+      const g = ctx.createLinearGradient(x, y, x, y+s);
+      g.addColorStop(0,'#ffd23f'); g.addColorStop(1,'#e8940f');
+      ctx.fillStyle = g;
+      rr(x+4, y+4, s-8, s-8, 10); ctx.fill();
+      ctx.fillStyle = '#8a1a12';
+      ctx.font = `bold ${s*0.36}px "Segoe UI"`; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('MM', x+s/2, y+s/2+1);
+    }
+    ctx.strokeStyle = `hsl(${(Date.now()/8)%360},90%,60%)`;
+    ctx.lineWidth = 3;
+    rr(x+3, y+3, s-6, s-6, 10); ctx.stroke();
+  } else {
+    const f = FOODS[t.type], img = IMGS[f.key];
+    if (img){
+      ctx.shadowColor = 'rgba(0,0,0,.35)'; ctx.shadowBlur = 6; ctx.shadowOffsetY = 2;
+      rr(x+4, y+4, s-8, s-8, 12);
+      ctx.fillStyle = '#fff'; ctx.fill();
+      ctx.shadowColor = 'transparent';
+      ctx.save();
+      rr(x+4, y+4, s-8, s-8, 12); ctx.clip();
+      ctx.drawImage(img, x+4, y+4, s-8, s-8);
+      ctx.restore();
+    } else {
+      const g = ctx.createRadialGradient(x+s*0.35, y+s*0.3, s*0.08, x+s/2, y+s/2, s*0.52);
+      g.addColorStop(0, f.c1); g.addColorStop(1, f.c2);
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(x+s/2, y+s/2, s*0.44, 0, 7); ctx.fill();
+      ctx.font = `${s*0.5}px "Segoe UI Emoji"`; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(f.emoji, x+s/2, y+s/2+2);
+    }
+    if (t.special === 'cross'){
+      ctx.strokeStyle = 'rgba(232,72,63,.85)'; ctx.lineWidth = 3.5; ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(x+s/2, y+s*0.16); ctx.lineTo(x+s/2, y+s*0.84);
+      ctx.moveTo(x+s*0.16, y+s/2); ctx.lineTo(x+s*0.84, y+s/2);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(245,166,35,.95)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x+s/2, y+s/2, s*0.46, 0, 7); ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+function draw(){
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  // 屏幕震动
+  if (shakeT > 0){
+    shakeT *= 0.88;
+    if (shakeT < 0.4) shakeT = 0;
+    ctx.translate((Math.random()-0.5)*shakeT, (Math.random()-0.5)*shakeT);
+  }
+  ctx.fillStyle = 'rgba(255,255,255,.55)';
+  rr(0, 0, cv.width, cv.height, 14); ctx.fill();
+  ctx.fillStyle = 'rgba(232,72,63,.06)';
+  for (let r=0; r<N; r++) for (let c=0; c<N; c++)
+    if ((r+c)%2===0){ rr(px(c)+1, py(r)+1, TILE-2, TILE-2, 8); ctx.fill(); }
+  // 果冻层（棋子下面）
+  if (jelly) for (let r=0; r<N; r++) for (let c=0; c<N; c++){
+    if (jelly[r][c] > 0){
+      ctx.fillStyle = jelly[r][c] === 2 ? 'rgba(64,150,255,.5)' : 'rgba(120,190,255,.38)';
+      rr(px(c)+2, py(r)+2, TILE-4, TILE-4, 10); ctx.fill();
+      ctx.strokeStyle = 'rgba(50,130,240,.55)'; ctx.lineWidth = 2;
+      rr(px(c)+2, py(r)+2, TILE-4, TILE-4, 10); ctx.stroke();
+    }
+  }
+  if (grid){
+    for (let r=0; r<N; r++) for (let c=0; c<N; c++)
+      if (grid[r][c]) drawTile(grid[r][c]);
+    if (sel){
+      ctx.strokeStyle = '#e8483f'; ctx.lineWidth = 3;
+      rr(px(sel[1])+2, py(sel[0])+2, TILE-4, TILE-4, 10); ctx.stroke();
+    }
+    if (state==='idle' && Date.now()-idleSince > 5000){
+      if (!hintMove) hintMove = findAnyMove();
+      if (hintMove){
+        const a = 0.4 + 0.35*Math.sin(Date.now()/180);
+        ctx.strokeStyle = `rgba(245,166,35,${a})`; ctx.lineWidth = 4;
+        for (const [r,c] of hintMove){ rr(px(c)+3, py(r)+3, TILE-6, TILE-6, 10); ctx.stroke(); }
+      }
+    }
+  }
+  // 十字光束
+  for (const b of beams){
+    ctx.globalAlpha = Math.max(0, b.t);
+    const gh = ctx.createLinearGradient(0, py(b.r), 0, py(b.r)+TILE);
+    gh.addColorStop(0, 'rgba(255,210,63,0)'); gh.addColorStop(0.5, 'rgba(255,230,120,.95)'); gh.addColorStop(1, 'rgba(255,210,63,0)');
+    ctx.fillStyle = gh;
+    ctx.fillRect(0, py(b.r), cv.width, TILE);
+    const gv = ctx.createLinearGradient(px(b.c), 0, px(b.c)+TILE, 0);
+    gv.addColorStop(0, 'rgba(255,210,63,0)'); gv.addColorStop(0.5, 'rgba(255,230,120,.95)'); gv.addColorStop(1, 'rgba(255,210,63,0)');
+    ctx.fillStyle = gv;
+    ctx.fillRect(px(b.c), 0, TILE, cv.height);
+    ctx.globalAlpha = 1;
+    b.t -= 0.05;
+  }
+  beams = beams.filter(b => b.t > 0);
+  // MM 冲击波
+  for (const w of waves){
+    ctx.globalAlpha = Math.max(0, w.t);
+    ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 6 * w.t;
+    ctx.beginPath(); ctx.arc(w.x, w.y, w.r, 0, 7); ctx.stroke();
+    ctx.globalAlpha = 1;
+    w.r += 14; w.t -= 0.04;
+  }
+  waves = waves.filter(w => w.t > 0);
+  // 粒子
+  for (const p of particles){
+    ctx.globalAlpha = Math.max(0, p.life);
+    ctx.fillStyle = p.color;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.size * p.life, 0, 7); ctx.fill();
+    ctx.globalAlpha = 1;
+    p.x += p.vx; p.y += p.vy; p.vy += 0.25; p.life -= 0.03;
+  }
+  particles = particles.filter(p => p.life > 0);
+  if (particles.length > 400) particles.splice(0, particles.length - 400);
+  // 飞分
+  for (const e of effects){
+    ctx.globalAlpha = Math.max(0, e.alpha);
+    ctx.fillStyle = '#e8483f';
+    ctx.font = 'bold 26px "Segoe UI","Microsoft YaHei"';
+    ctx.textAlign = 'center';
+    ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = 4;
+    ctx.strokeText(e.text, e.x, e.y); ctx.fillText(e.text, e.x, e.y);
+    ctx.globalAlpha = 1;
+    e.y -= 0.8; e.alpha -= 0.016;
+  }
+  effects = effects.filter(e => e.alpha > 0);
+  // 大 POWER 模式：金框脉冲 + 剩余点炸数
+  if (state === 'fever'){
+    const a = 0.5 + 0.4 * Math.sin(Date.now() / 120);
+    ctx.strokeStyle = `rgba(245,166,35,${a})`; ctx.lineWidth = 6;
+    rr(4, 4, cv.width - 8, cv.height - 8, 12); ctx.stroke();
+    const txt = `🔥 点爆 x${feverTaps}`;
+    ctx.fillStyle = '#e8483f';
+    ctx.font = 'bold 24px "Segoe UI","Microsoft YaHei"';
+    ctx.textAlign = 'center';
+    ctx.strokeStyle = 'rgba(255,255,255,.92)'; ctx.lineWidth = 5;
+    ctx.strokeText(txt, cv.width / 2, 30); ctx.fillText(txt, cv.width / 2, 30);
+  }
+  requestAnimationFrame(draw);
+}
+
+// ================= 输入 =================
+function cellFromEvent(e){
+  const rect = cv.getBoundingClientRect();
+  const scale = cv.width / rect.width;
+  const x = (e.clientX - rect.left) * scale - PAD;
+  const y = (e.clientY - rect.top) * scale - PAD;
+  const c = Math.floor(x / TILE), r = Math.floor(y / TILE);
+  if (r<0 || r>=N || c<0 || c>=N) return null;
+  return [r, c];
+}
+cv.addEventListener('pointerdown', e => {
+  const cell = cellFromEvent(e);
+  if (!cell) return;
+  if (state === 'fever'){ feverTap(cell); return; }
+  if (state !== 'idle') return;
+  dragStart = {cell, x:e.clientX, y:e.clientY};
+  idleSince = Date.now();
+});
+cv.addEventListener('pointermove', e => {
+  if (!dragStart || state !== 'idle') return;
+  const dx = e.clientX - dragStart.x, dy = e.clientY - dragStart.y;
+  if (Math.abs(dx) < 18 && Math.abs(dy) < 18) return;
+  const [r, c] = dragStart.cell;
+  const to = Math.abs(dx) > Math.abs(dy) ? [r, c + Math.sign(dx)] : [r + Math.sign(dy), c];
+  dragStart = null;
+  if (to[0]>=0 && to[0]<N && to[1]>=0 && to[1]<N) doSwap([r,c], to);
+});
+cv.addEventListener('pointerup', e => {
+  if (!dragStart) return;
+  const cell = dragStart.cell; dragStart = null;
+  if (state !== 'idle') return;
+  if (sel && adjacent(sel, cell)){ doSwap(sel, cell); }
+  else if (sel && sel[0]===cell[0] && sel[1]===cell[1]) sel = null;
+  else sel = cell;
+});
+
+// ================= 启动 =================
+showMap();
+draw();
+// PWA：注册 Service Worker（只在 http/https 下生效，本地 file:// 自动跳过）
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')){
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>
