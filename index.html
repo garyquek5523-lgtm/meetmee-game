@@ -2,7 +2,7 @@
 <html lang="zh">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Meet Mee 消消乐</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#e8483f">
@@ -17,23 +17,32 @@
     --gold:#f5a623; --red:#e8483f; --text:#4a2c1a;
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
-  html,body{margin:0; padding:0; min-height:100%;
+  html,body{margin:0; padding:0;
     background:var(--bg);
     color:var(--text); font-family:"Segoe UI","Microsoft YaHei",sans-serif; touch-action:manipulation;}
+  /* 页面锁死：不滚动、不回弹 */
+  html,body{position:fixed; inset:0; width:100%; height:100%; overflow:hidden; overscroll-behavior:none;}
   .bgPacket{position:fixed; z-index:-1; filter:drop-shadow(0 10px 26px rgba(0,0,0,.22));}
   #packetL{left:-5vw; bottom:-4vh; width:36vw; max-width:300px; transform:rotate(-12deg);}
   #packetR{right:-5vw; top:-3vh; width:34vw; max-width:280px; transform:rotate(13deg);}
-  #wrap{max-width:520px; margin:0 auto; padding:10px 8px 24px;}
-  header{display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; gap:8px;}
-  header h1{font-size:20px; margin:0; color:var(--red);}
+  /* 手机：包装淡淡垫在棋盘后面 */
+  @media (max-width:700px){
+    #packetL{left:-12vw; bottom:14vh; width:62vw; max-width:none; opacity:.13; filter:none; transform:rotate(-16deg);}
+    #packetR{right:-12vw; top:10vh; width:58vw; max-width:none; opacity:.13; filter:none; transform:rotate(15deg);}
+    header .sub, .hint{display:none;}
+  }
+  #wrap{max-width:560px; margin:0 auto; padding:6px 6px 10px; height:100%;
+    display:flex; flex-direction:column;}
+  header{display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; gap:8px; flex:0 0 auto;}
+  header h1{font-size:18px; margin:0; color:var(--red); white-space:nowrap;}
   header .sub{font-size:11px; color:#a08265; margin-left:auto;}
   #muteBtn,#mapBtn{font-size:17px; padding:4px 10px; border-radius:10px; border:1px solid var(--line);
     background:var(--panel); cursor:pointer;}
-  #stats{display:flex; gap:6px; margin-bottom:6px;}
+  #stats{display:flex; gap:5px; margin-bottom:5px; flex:0 0 auto;}
   .stat{flex:1; background:var(--panel); border:1px solid var(--line); border-radius:10px;
-    padding:5px 6px; text-align:center; backdrop-filter:blur(4px); box-shadow:0 2px 8px rgba(0,0,0,.06);}
-  .stat .label{font-size:10px; color:#a08265;}
-  .stat .value{font-size:16px; font-weight:700; color:var(--red); white-space:nowrap;}
+    padding:3px 5px; text-align:center; backdrop-filter:blur(4px); box-shadow:0 2px 8px rgba(0,0,0,.06);}
+  .stat .label{font-size:9px; color:#a08265;}
+  .stat .value{font-size:15px; font-weight:700; color:var(--red); white-space:nowrap;}
   #barBox{background:rgba(0,0,0,.10); border-radius:8px; height:14px; margin-bottom:4px; overflow:hidden; border:1px solid var(--line);}
   #bar{height:100%; width:0%; border-radius:8px; transition:width .4s;
     background:linear-gradient(90deg,#ffb52e,#ffd23f);}
@@ -42,10 +51,11 @@
     background:linear-gradient(90deg,#e8483f,#ff7b2e,#ffd23f);}
   #energyBox.full #energy{animation:eflash .35s infinite;}
   @keyframes eflash{0%,100%{filter:brightness(1);}50%{filter:brightness(1.8);}}
+  #boardArea{flex:1 1 auto; min-height:0; display:flex; justify-content:center; align-items:center;}
   #boardBox{position:relative;}
-  canvas{display:block; width:100%; border-radius:14px;}
+  canvas{display:block; width:100%; height:100%; border-radius:14px;}
   #overlay{position:absolute; inset:0; background:rgba(255,250,242,.95); border-radius:14px;
-    display:flex; flex-direction:column; align-items:center; justify-content:safe center; text-align:center; padding:14px; backdrop-filter:blur(3px); box-shadow:0 6px 30px rgba(0,0,0,.12); overflow:auto;}
+    display:flex; flex-direction:column; align-items:center; justify-content:safe center; text-align:center; padding:14px; backdrop-filter:blur(3px); box-shadow:0 6px 30px rgba(0,0,0,.12); overflow:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch;}
   #overlay h2{color:var(--red); margin:0 0 8px; font-size:24px;}
   #overlay p{font-size:14px; line-height:1.8; color:#6b4a30; margin:4px 0;}
   #overlay .stars{font-size:34px; letter-spacing:6px; margin:2px 0 6px;}
@@ -86,10 +96,12 @@
   </div>
   <div id="barBox"><div id="bar"></div></div>
   <div id="energyBox"><div id="energy"></div></div>
-  <div id="boardBox">
-    <canvas id="game"></canvas>
-    <div id="toast"></div>
-    <div id="overlay"></div>
+  <div id="boardArea">
+    <div id="boardBox">
+      <canvas id="game"></canvas>
+      <div id="toast"></div>
+      <div id="overlay"></div>
+    </div>
   </div>
   <div class="hint">滑动交换 · 4连=十字爆炸 · 5连=MM包装(换谁清谁) · 发呆有提示</div>
 </div>
@@ -956,7 +968,23 @@ cv.addEventListener('pointerup', e => {
   else sel = cell;
 });
 
+// ================= 布局：棋盘撑满可用空间 =================
+function fitBoard(){
+  const area = $('boardArea');
+  const s = Math.max(200, Math.min(area.clientWidth, area.clientHeight));
+  const bb = $('boardBox');
+  bb.style.width = s + 'px';
+  bb.style.height = s + 'px';
+}
+window.addEventListener('resize', fitBoard);
+window.addEventListener('orientationchange', () => setTimeout(fitBoard, 200));
+// 锁死触摸滚动（关卡地图弹窗内例外，它需要上下滚）
+document.addEventListener('touchmove', e => {
+  if (!e.target.closest('#overlay')) e.preventDefault();
+}, {passive:false});
+
 // ================= 启动 =================
+fitBoard();
 showMap();
 draw();
 // PWA：注册 Service Worker（只在 http/https 下生效，本地 file:// 自动跳过）
