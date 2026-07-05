@@ -1,6 +1,6 @@
 // Meet Mee 消消乐 Service Worker
 // 换图/改代码后发布新版：改这个版本号即可让所有玩家自动更新
-const CACHE = 'meetmee-v3';
+const CACHE = 'meetmee-v4';
 const ASSETS = [
   './index.html',
   './manifest.json',
