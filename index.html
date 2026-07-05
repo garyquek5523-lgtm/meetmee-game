@@ -108,7 +108,7 @@
 <script>
 'use strict';
 // ================= 常量 =================
-const N = 8, TILE = 60, PAD = 6;
+const COLS = 7, ROWS = 12, TILE = 60, PAD = 6;
 const FOODS = [
   {key:'egg',      name:'鸡蛋',        emoji:'🥚', c1:'#ffe9b8', c2:'#e0a83c'},
   {key:'noodle',   name:'面块',        emoji:'🍜', c1:'#ffd9a8', c2:'#c9722a'},
@@ -127,7 +127,7 @@ function tryLoad(key){
 }
 for (const f of FOODS) tryLoad(f.key);
 tryLoad('mm'); tryLoad('mm2');
-const MM_SPAWN_CHANCE = 0.03;
+const MM_SPAWN_CHANCE = 0.02;
 const MATCH_MIN = 3;
 
 // ================= 语音喊词（audio/ 下有文件就自动启用） =================
@@ -238,17 +238,18 @@ if (AudioSys.muted) document.getElementById('muteBtn').textContent = '🔇';
 
 // ================= 关卡设计 =================
 // 手工设计前 10 关（难度有起伏），之后程序化生成
+// 数值按 7x12 竖长棋盘校准（连锁猛，产分高）
 const LEVELS = [
-  {goal:{kind:'score', target:600},  moves:20, types:4},
-  {goal:{kind:'score', target:1000}, moves:20, types:4},
-  {goal:{kind:'collect', items:[{type:0, count:15}]}, moves:20, types:4},
-  {goal:{kind:'score', target:1600}, moves:19, types:5},
-  {goal:{kind:'jelly', count:12, layers:1}, moves:20, types:4},
-  {goal:{kind:'collect', items:[{type:1, count:12},{type:2, count:12}]}, moves:19, types:5},
-  {goal:{kind:'score', target:2400}, moves:18, types:5},
-  {goal:{kind:'jelly', count:18, layers:1}, moves:18, types:5},
-  {goal:{kind:'score', target:1400}, moves:20, types:4},   // 爽关
-  {goal:{kind:'jelly', count:20, layers:2}, moves:20, types:5},
+  {goal:{kind:'score', target:4000},  moves:20, types:4},
+  {goal:{kind:'score', target:7000},  moves:20, types:4},
+  {goal:{kind:'collect', items:[{type:0, count:30}]}, moves:20, types:4},
+  {goal:{kind:'score', target:6500}, moves:19, types:5},
+  {goal:{kind:'jelly', count:16, layers:1}, moves:20, types:4},
+  {goal:{kind:'collect', items:[{type:1, count:24},{type:2, count:24}]}, moves:19, types:5},
+  {goal:{kind:'score', target:12000}, moves:18, types:5},
+  {goal:{kind:'jelly', count:24, layers:1}, moves:18, types:5},
+  {goal:{kind:'score', target:8000},  moves:20, types:4},   // 爽关
+  {goal:{kind:'jelly', count:26, layers:2}, moves:20, types:5},
 ];
 const MAX_LEVEL = 50;
 function levelCfg(n){
@@ -259,7 +260,7 @@ function levelCfg(n){
   const moves = breather ? 20 : Math.max(15, 20 - Math.floor(i / 4));
   const kind = ['score', 'collect', 'jelly'][n % 3];
   if (kind === 'score')
-    return {goal:{kind, target: (breather ? 1200 : 2200) + i * 260}, moves, types};
+    return {goal:{kind, target: (breather ? 7000 : 11000) + i * 1400}, moves, types};
   if (kind === 'collect'){
     const nItems = breather ? 1 : Math.min(3, 1 + Math.floor(i / 6));
     const items = [];
@@ -268,11 +269,11 @@ function levelCfg(n){
       let t;
       do { t = Math.floor(Math.random() * types); } while (used.has(t));
       used.add(t);
-      items.push({type: t, count: (breather ? 12 : 16) + Math.floor(i / 2)});
+      items.push({type: t, count: (breather ? 24 : 32) + i});
     }
     return {goal:{kind, items}, moves, types};
   }
-  return {goal:{kind:'jelly', count: Math.min(32, (breather ? 14 : 20) + Math.floor(i / 2)),
+  return {goal:{kind:'jelly', count: Math.min(48, (breather ? 20 : 28) + Math.floor(i / 2)),
     layers: n >= 15 ? 2 : 1}, moves, types};
 }
 function goalText(cfg, collectCounts, jellyLeft){
@@ -283,7 +284,7 @@ function goalText(cfg, collectCounts, jellyLeft){
   return `🟦果冻 剩${jellyLeft}`;
 }
 function starThresholds(cfg){
-  const base = cfg.goal.kind === 'score' ? cfg.goal.target : cfg.moves * 130;
+  const base = cfg.goal.kind === 'score' ? cfg.goal.target : cfg.moves * 700;
   return [base, Math.round(base * 1.5), Math.round(base * 2.1)];
 }
 
@@ -300,7 +301,7 @@ let effects = [], particles = [], beams = [], waves = [], shakeT = 0;
 let energy = 0, energyFull = false, feverTaps = 0, feverTimer = null, feverBusy = false, lastEnergyTick = 0;
 
 const cv = document.getElementById('game');
-cv.width = N*TILE + PAD*2; cv.height = N*TILE + PAD*2;
+cv.width = COLS*TILE + PAD*2; cv.height = ROWS*TILE + PAD*2;
 const ctx = cv.getContext('2d');
 const $ = id => document.getElementById(id);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -369,7 +370,7 @@ async function feverTap(cell){
   const set = new Set();
   for (let dr=-1; dr<=1; dr++) for (let dc=-1; dc<=1; dc++){
     const r2 = r+dr, c2 = c+dc;
-    if (r2>=0 && r2<N && c2>=0 && c2<N && grid[r2][c2]) set.add(r2+','+c2);
+    if (r2>=0 && r2<ROWS && c2>=0 && c2<COLS && grid[r2][c2]) set.add(r2+','+c2);
   }
   AudioSys.blast();
   waves.push({x:px(c)+TILE/2, y:py(r)+TILE/2, r:0, t:0.8});
@@ -399,9 +400,9 @@ function makeTile(type, r, c, fromAbove){
 function randType(){ return Math.floor(Math.random()*cfg.types); }
 function initGrid(){
   grid = [];
-  for (let r=0; r<N; r++){
+  for (let r=0; r<ROWS; r++){
     grid.push([]);
-    for (let c=0; c<N; c++){
+    for (let c=0; c<COLS; c++){
       let t;
       do { t = randType(); }
       while ((c>=2 && grid[r][c-1].type===t && grid[r][c-2].type===t) ||
@@ -412,16 +413,16 @@ function initGrid(){
   if (!findAnyMove()) initGrid();
 }
 function initJelly(){
-  jelly = Array.from({length:N}, () => Array(N).fill(0));
+  jelly = Array.from({length:ROWS}, () => Array(COLS).fill(0));
   totalJelly = 0;
   if (cfg.goal.kind !== 'jelly') return;
   const cells = [];
-  for (let r=0; r<N; r++) for (let c=0; c<N; c++) cells.push([r,c]);
+  for (let r=0; r<ROWS; r++) for (let c=0; c<COLS; c++) cells.push([r,c]);
   for (let i=cells.length-1; i>0; i--){
     const j = Math.floor(Math.random()*(i+1));
     [cells[i],cells[j]] = [cells[j],cells[i]];
   }
-  for (let k=0; k<Math.min(cfg.goal.count, N*N); k++){
+  for (let k=0; k<Math.min(cfg.goal.count, ROWS*COLS); k++){
     const [r,c] = cells[k];
     jelly[r][c] = cfg.goal.layers;
     totalJelly += cfg.goal.layers;
@@ -432,7 +433,7 @@ function initJelly(){
 function updatePhysics(){
   if (!grid) return;
   const snap = document.hidden;
-  for (let r=0; r<N; r++) for (let c=0; c<N; c++){
+  for (let r=0; r<ROWS; r++) for (let c=0; c<COLS; c++){
     const t = grid[r][c];
     if (!t) continue;
     if (snap){ t.px = px(c); t.py = py(r); if (t.dying) t.scale = 0; continue; }
@@ -446,7 +447,7 @@ async function waitSettle(){
   while (true){
     updatePhysics();
     let moving = false;
-    for (let r=0; r<N; r++) for (let c=0; c<N; c++){
+    for (let r=0; r<ROWS; r++) for (let c=0; c<COLS; c++){
       const t = grid[r][c];
       if (t && (Math.abs(t.px-px(c))>0.6 || Math.abs(t.py-py(r))>0.6)) moving = true;
     }
@@ -458,20 +459,20 @@ async function waitSettle(){
 // ================= 消除逻辑 =================
 function findRuns(){
   const runs = [];
-  for (let r=0; r<N; r++){
+  for (let r=0; r<ROWS; r++){
     let c=0;
-    while (c<N){
+    while (c<COLS){
       const t = grid[r][c].type; let len=1;
-      while (c+len<N && grid[r][c+len].type===t) len++;
+      while (c+len<COLS && grid[r][c+len].type===t) len++;
       if (len>=3 && t !== -1) runs.push({cells:Array.from({length:len},(_,i)=>[r,c+i]), len, dir:'h'});
       c += len;
     }
   }
-  for (let c=0; c<N; c++){
+  for (let c=0; c<COLS; c++){
     let r=0;
-    while (r<N){
+    while (r<ROWS){
       const t = grid[r][c].type; let len=1;
-      while (r+len<N && grid[r+len][c].type===t) len++;
+      while (r+len<ROWS && grid[r+len][c].type===t) len++;
       if (len>=3 && t !== -1) runs.push({cells:Array.from({length:len},(_,i)=>[r+i,c]), len, dir:'v'});
       r += len;
     }
@@ -495,10 +496,13 @@ function collectClears(runs, swapCells){
     if (!t || t.special !== 'cross' || t.exploded) continue;
     t.exploded = true;
     crossHits.push([r,c]);
-    for (let i=0; i<N; i++){
-      for (const k of [r+','+i, i+','+c]){
-        if (!clear.has(k)){ clear.add(k); queue.push(k); }
-      }
+    for (let i=0; i<COLS; i++){
+      const k = r+','+i;
+      if (!clear.has(k)){ clear.add(k); queue.push(k); }
+    }
+    for (let i=0; i<ROWS; i++){
+      const k = i+','+c;
+      if (!clear.has(k)){ clear.add(k); queue.push(k); }
     }
   }
   for (const s of specialsBorn) clear.delete(s.at[0]+','+s.at[1]);
@@ -535,7 +539,7 @@ async function popCells(clearSet, mult, crossHits){
   }
   cx/=clearSet.size; cy/=clearSet.size;
   shakeT = Math.max(shakeT, Math.min(14, 2 + clearSet.size * 0.5 + mult));
-  gainEnergy(clearSet.size * 0.03 + (mult - 1) * 0.05);
+  gainEnergy(clearSet.size * 0.012 + (mult - 1) * 0.025);
   const gained = clearSet.size * 10 * mult;
   effects.push({text:(mult>1?`连锁x${mult} `:'')+`+${gained}`, x:cx, y:cy, alpha:1});
   await sleep(260);
@@ -546,9 +550,9 @@ async function popCells(clearSet, mult, crossHits){
   return gained;
 }
 function gravityRefill(){
-  for (let c=0; c<N; c++){
-    let write = N-1, newCount = 0;
-    for (let r=N-1; r>=0; r--){
+  for (let c=0; c<COLS; c++){
+    let write = ROWS-1, newCount = 0;
+    for (let r=ROWS-1; r>=0; r--){
       if (grid[r][c]){ grid[write][c] = grid[r][c]; write--; }
     }
     for (let r=write; r>=0; r--){
@@ -600,9 +604,9 @@ async function activateMM(mmCell, otherCell){
   const other = grid[or_][oc];
   const clear = new Set([mr+','+mc]);
   if (other.special === 'mm'){
-    for (let r=0; r<N; r++) for (let c=0; c<N; c++) clear.add(r+','+c);
+    for (let r=0; r<ROWS; r++) for (let c=0; c<COLS; c++) clear.add(r+','+c);
   } else {
-    for (let r=0; r<N; r++) for (let c=0; c<N; c++)
+    for (let r=0; r<ROWS; r++) for (let c=0; c<COLS; c++)
       if (grid[r][c].type === other.type) clear.add(r+','+c);
   }
   const queue = [...clear];
@@ -613,8 +617,14 @@ async function activateMM(mmCell, otherCell){
     if (!t || t.special !== 'cross' || t.exploded) continue;
     t.exploded = true;
     crossHits.push([r,c]);
-    for (let i=0; i<N; i++) for (const k of [r+','+i, i+','+c])
+    for (let i=0; i<COLS; i++){
+      const k = r+','+i;
       if (!clear.has(k)){ clear.add(k); queue.push(k); }
+    }
+    for (let i=0; i<ROWS; i++){
+      const k = i+','+c;
+      if (!clear.has(k)){ clear.add(k); queue.push(k); }
+    }
   }
   score += await popCells(clear, 1, crossHits);
   gravityRefill();
@@ -629,12 +639,12 @@ function swapTypes(a, b){
 }
 function hasRunAt(){ return findRuns().length > 0; }
 function findAnyMove(){
-  for (let r=0; r<N; r++) for (let c=0; c<N; c++){
+  for (let r=0; r<ROWS; r++) for (let c=0; c<COLS; c++){
     if (!grid[r][c]) continue;
     if (grid[r][c].special === 'mm' && c > 0) return [[r,c],[r,c-1]];
     for (const [dr,dc] of [[0,1],[1,0]]){
       const r2=r+dr, c2=c+dc;
-      if (r2>=N || c2>=N || !grid[r2][c2]) continue;
+      if (r2>=ROWS || c2>=COLS || !grid[r2][c2]) continue;
       swapTypes([r,c],[r2,c2]);
       const ok = hasRunAt();
       swapTypes([r,c],[r2,c2]);
@@ -645,7 +655,7 @@ function findAnyMove(){
 }
 function shuffleBoard(){
   const cells = [];
-  for (let r=0; r<N; r++) for (let c=0; c<N; c++)
+  for (let r=0; r<ROWS; r++) for (let c=0; c<COLS; c++)
     if (grid[r][c].special !== 'mm') cells.push([r,c]);
   const types = cells.map(([r,c]) => grid[r][c].type);
   let guard = 0;
@@ -844,10 +854,10 @@ function draw(){
   ctx.fillStyle = 'rgba(255,255,255,.55)';
   rr(0, 0, cv.width, cv.height, 14); ctx.fill();
   ctx.fillStyle = 'rgba(232,72,63,.06)';
-  for (let r=0; r<N; r++) for (let c=0; c<N; c++)
+  for (let r=0; r<ROWS; r++) for (let c=0; c<COLS; c++)
     if ((r+c)%2===0){ rr(px(c)+1, py(r)+1, TILE-2, TILE-2, 8); ctx.fill(); }
   // 果冻层（棋子下面）
-  if (jelly) for (let r=0; r<N; r++) for (let c=0; c<N; c++){
+  if (jelly) for (let r=0; r<ROWS; r++) for (let c=0; c<COLS; c++){
     if (jelly[r][c] > 0){
       ctx.fillStyle = jelly[r][c] === 2 ? 'rgba(64,150,255,.5)' : 'rgba(120,190,255,.38)';
       rr(px(c)+2, py(r)+2, TILE-4, TILE-4, 10); ctx.fill();
@@ -856,7 +866,7 @@ function draw(){
     }
   }
   if (grid){
-    for (let r=0; r<N; r++) for (let c=0; c<N; c++)
+    for (let r=0; r<ROWS; r++) for (let c=0; c<COLS; c++)
       if (grid[r][c]) drawTile(grid[r][c]);
     if (sel){
       ctx.strokeStyle = '#e8483f'; ctx.lineWidth = 3;
@@ -939,7 +949,7 @@ function cellFromEvent(e){
   const x = (e.clientX - rect.left) * scale - PAD;
   const y = (e.clientY - rect.top) * scale - PAD;
   const c = Math.floor(x / TILE), r = Math.floor(y / TILE);
-  if (r<0 || r>=N || c<0 || c>=N) return null;
+  if (r<0 || r>=ROWS || c<0 || c>=COLS) return null;
   return [r, c];
 }
 cv.addEventListener('pointerdown', e => {
@@ -957,7 +967,7 @@ cv.addEventListener('pointermove', e => {
   const [r, c] = dragStart.cell;
   const to = Math.abs(dx) > Math.abs(dy) ? [r, c + Math.sign(dx)] : [r + Math.sign(dy), c];
   dragStart = null;
-  if (to[0]>=0 && to[0]<N && to[1]>=0 && to[1]<N) doSwap([r,c], to);
+  if (to[0]>=0 && to[0]<ROWS && to[1]>=0 && to[1]<COLS) doSwap([r,c], to);
 });
 cv.addEventListener('pointerup', e => {
   if (!dragStart) return;
@@ -971,10 +981,12 @@ cv.addEventListener('pointerup', e => {
 // ================= 布局：棋盘撑满可用空间 =================
 function fitBoard(){
   const area = $('boardArea');
-  const s = Math.max(200, Math.min(area.clientWidth, area.clientHeight));
+  const aspect = cv.height / cv.width;   // 竖长棋盘
+  let w = Math.min(area.clientWidth, area.clientHeight / aspect);
+  w = Math.max(180, w);
   const bb = $('boardBox');
-  bb.style.width = s + 'px';
-  bb.style.height = s + 'px';
+  bb.style.width = w + 'px';
+  bb.style.height = (w * aspect) + 'px';
 }
 window.addEventListener('resize', fitBoard);
 window.addEventListener('orientationchange', () => setTimeout(fitBoard, 200));
