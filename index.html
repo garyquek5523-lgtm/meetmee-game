@@ -235,6 +235,29 @@ document.getElementById('muteBtn').onclick = () => {
   if (!AudioSys.muted) AudioSys.init();
 };
 if (AudioSys.muted) document.getElementById('muteBtn').textContent = '🔇';
+// iOS 修复 1：系统随时会挂起音频引擎（锁屏/切出/来通知），每次触屏都检查并唤醒
+function wakeAudio(){
+  if (AudioSys.ctx && AudioSys.ctx.state !== 'running'){
+    try { AudioSys.ctx.resume(); } catch(e){}
+  }
+  unlockVoices();
+}
+document.addEventListener('pointerdown', wakeAudio, true);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) wakeAudio(); });
+// iOS 修复 2：语音要先被用户手势"解锁"一次，之后才允许游戏自动播放
+let voicesUnlocked = false;
+function unlockVoices(){
+  if (voicesUnlocked) return;
+  voicesUnlocked = true;
+  for (const nm in VOICES){
+    const a = VOICES[nm];
+    try {
+      a.muted = true;
+      a.play().then(() => { a.pause(); a.currentTime = 0; a.muted = false; })
+              .catch(() => { a.muted = false; voicesUnlocked = false; });
+    } catch(e){ a.muted = false; }
+  }
+}
 
 // ================= 关卡设计 =================
 // 手工设计前 10 关（难度有起伏），之后程序化生成
